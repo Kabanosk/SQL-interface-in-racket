@@ -77,10 +77,12 @@
 
     (define (print-rows row rows)
         (print-row (car row) (cdr row))
-        (display "\n")
-        (if (null? rows) 
-            (line x)
-            (print-rows (car rows) (cdr rows))))
+        
+        (cond [(null? rows) 
+                (line x)]
+            [else 
+                (display "\n")
+                (print-rows (car rows) (cdr rows))]))
 
     (display-schema (car (table-schema tab)) (cdr (table-schema tab)))
     (print-rows (car (table-rows tab)) (cdr (table-rows tab)))
