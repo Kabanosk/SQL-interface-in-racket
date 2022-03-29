@@ -142,7 +142,23 @@
 
 ; Zmiana nazwy
 
-(define (table-rename col ncol tab) null)
+(define (table-rename name new-name tab)
+    (define schema (table-schema tab))
+    (define (pom acc x ys) 
+        (cond [(null? ys) 
+            (if (equal? name (column-info-name x))
+                (append acc (list (column-info new-name (column-info-type x)))) 
+                (append acc (list x)))]        
+            [(equal? name (column-info-name x))
+                (pom (append acc (list (column-info new-name (column-info-type x)))) 
+                    (car ys) 
+                    (cdr ys))]
+            [else (pom (append acc (list x)) (car ys) (cdr ys))]))
+
+    (define tmp (pom '() (car schema) (cdr schema)))
+    (table 
+        tmp
+        (table-rows tab)))
 
 ; Złączenie kartezjańskie
 
@@ -154,3 +170,5 @@
 
 (define tab (table-insert (list "Rzeszow" "Poland" 129 #f) cities))
 (table-project tab)
+(define tab1 (table-rename 'capital 'ez tab))
+(table-project tab1)
