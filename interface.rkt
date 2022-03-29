@@ -1,5 +1,5 @@
 #lang racket
-
+;(type "Rzeszow")
 (provide (struct-out column-info)
          (struct-out table)
          (struct-out and-f)
@@ -8,7 +8,7 @@
          (struct-out eq-f)
          (struct-out eq2-f)
          (struct-out lt-f)
-         table-insert
+         ;table-insert
          table-project
          table-sort
          table-select
@@ -47,7 +47,45 @@
 
 ; Wstawianie
 
-(define (table-insert row tab) null)
+(define (get-types tab)
+    (define x (table-schema tab))
+    (define (pom xs x schema)
+        (if (null? schema) 
+            (append xs (list (column-info-type x)))
+            (pom (append xs (list (column-info-type x))) (car schema) (cdr schema))))
+    (pom '() (car x) (cdr x)))
+
+(define (type-question elem)
+    (cond [(equal? 'string elem) 
+            (lambda (x) (string? x))]
+        [(equal? 'number elem) 
+            (lambda (x) (number? x))]
+        [(equal? 'boolean elem) 
+            (lambda (x) (boolean? x))]
+        [(equal? 'symbol elem) 
+            (lambda (x) (symbol? x))] ))
+
+(define (check-columns row tab)
+    (define types (get-types tab))
+    (define (check-types x row type types)
+        (define f (type-question type))
+        (if (null? types) 
+            (if (not (f x)) #f #t)
+            (if (not (f x)) 
+                #f
+                (check-types (car row) (cdr row) (car types) (cdr types)))  
+    ))
+    (check-types (car row) (cdr row) (car types) (cdr types)))
+
+
+(define (table-insert row tab) 
+    (if (check-columns row tab)
+        (table 
+            (table-schema tab) 
+            (append (table-rows tab) (list row)))
+        tab))
+
+
 
 ; Projekcja
 (define (line n)
@@ -56,8 +94,7 @@
         (display "-----\t")
         (if (> n 0) (pom (- n 1)) (display "\n"))
     )
-    (pom (- n 1)) 
-)
+    (pom (- n 1)) )
 
 ; TODO: Dodaj taby odnośnie typów (na stringi 2 taby(?))
 (define (table-project tab) 
@@ -75,19 +112,19 @@
         (display "\t")
         (if (null? row) null (print-row (car row) (cdr row))))
 
-    (define (print-rows row rows)
+    (define (display-rows row rows)
         (print-row (car row) (cdr row))
         
         (cond [(null? rows) 
                 (line x)]
             [else 
                 (display "\n")
-                (print-rows (car rows) (cdr rows))]))
+                (display-rows (car rows) (cdr rows))]))
 
     (display-schema (car (table-schema tab)) (cdr (table-schema tab)))
-    (print-rows (car (table-rows tab)) (cdr (table-rows tab)))
-)
-(table-project cities)
+    (display-rows (car (table-rows tab)) (cdr (table-rows tab))))
+
+
 ; Sortowanie
 
 (define (table-sort cols tab) null)
@@ -114,3 +151,6 @@
 ; Złączenie
 
 (define (table-natural-join tab1 tab2) null)
+
+(define tab (table-insert (list "Rzeszow" "Poland" 129 #f) cities))
+(table-project tab)
