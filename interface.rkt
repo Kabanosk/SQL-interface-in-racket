@@ -8,7 +8,7 @@
          (struct-out eq-f)
          (struct-out eq2-f)
          (struct-out lt-f)
-         ;table-insert
+         table-insert
          table-project
          table-sort
          table-select
@@ -19,33 +19,6 @@
 (define-struct column-info (name type) #:transparent)
 
 (define-struct table (schema rows) #:transparent)
-
-(define cities
-  (table
-   (list (column-info 'city    'string)
-         (column-info 'country 'string)
-         (column-info 'area    'number)
-         (column-info 'capital 'boolean))
-   (list (list "Wrocław" "Poland"  293 #f)
-         (list "Warsaw"  "Poland"  517 #t)
-         (list "Poznań"  "Poland"  262 #f)
-         (list "Berlin"  "Germany" 892 #t)
-         (list "Munich"  "Germany" 310 #f)
-         (list "Paris"   "France"  105 #t)
-         (list "Rennes"  "France"   50 #f))))
-
-(define countries
-  (table
-   (list (column-info 'country 'string)
-         (column-info 'population 'number))
-   (list (list "Poland" 38)
-         (list "Germany" 83)
-         (list "France" 67)
-         (list "Spain" 47))))
-
-(define (empty-table columns) (table columns '()))
-
-; Wstawianie
 
 (define (get-types tab)
     (define x (table-schema tab))
@@ -77,7 +50,6 @@
     ))
     (check-types (car row) (cdr row) (car types) (cdr types)))
 
-
 (define (table-insert row tab) 
     (if (check-columns row tab)
         (table 
@@ -85,9 +57,6 @@
             (append (table-rows tab) (list row)))
         tab))
 
-
-
-; Projekcja
 (define (line n)
     (display "\n")
     (define (pom n)
@@ -106,7 +75,6 @@
             (line x)
             (display-schema (car row) (cdr row))))
 
-
     (define (print-row elem row)
         (display elem)
         (display "\t")
@@ -123,7 +91,6 @@
 
     (display-schema (car (table-schema tab)) (cdr (table-schema tab)))
     (display-rows (car (table-rows tab)) (cdr (table-rows tab))))
-
 
 ; Sortowanie
 
@@ -156,9 +123,7 @@
             [else (pom (append acc (list x)) (car ys) (cdr ys))]))
 
     (define tmp (pom '() (car schema) (cdr schema)))
-    (table 
-        tmp
-        (table-rows tab)))
+    (table tmp (table-rows tab)))
 
 ; Złączenie kartezjańskie
 
@@ -167,8 +132,3 @@
 ; Złączenie
 
 (define (table-natural-join tab1 tab2) null)
-
-(define tab (table-insert (list "Rzeszow" "Poland" 129 #f) cities))
-(table-project tab)
-(define tab1 (table-rename 'capital 'ez tab))
-(table-project tab1)
