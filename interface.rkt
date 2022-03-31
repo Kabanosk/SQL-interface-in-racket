@@ -1,5 +1,5 @@
 #lang racket
-;(type "Rzeszow")
+
 (provide (struct-out column-info)
          (struct-out table)
          (struct-out and-f)
@@ -8,6 +8,8 @@
          (struct-out eq-f)
          (struct-out eq2-f)
          (struct-out lt-f)
+         get-specific-schema
+         table-display
          table-insert
          table-project
          table-sort
@@ -55,7 +57,7 @@
         (table 
             (table-schema tab) 
             (append (table-rows tab) (list row)))
-        tab))
+        (error "You cannot add this row.")))
 
 (define (line n)
     (display "\n")
@@ -65,8 +67,7 @@
     )
     (pom (- n 1)) )
 
-; TODO: Dodaj taby odnośnie typów (na stringi 2 taby(?))
-(define (table-project tab) 
+(define (table-display tab) 
     (define x (length (table-schema tab)))
     (define (display-schema elem row)
         (display (column-info-name elem))
@@ -90,9 +91,77 @@
                 (display-rows (car rows) (cdr rows))]))
 
     (display-schema (car (table-schema tab)) (cdr (table-schema tab)))
-    (display-rows (car (table-rows tab)) (cdr (table-rows tab))))
+    (if (null? (table-rows tab)) 
+        (display "\n") 
+        (display-rows (car (table-rows tab)) (cdr (table-rows tab)))))
 
 ; Sortowanie
+
+(define (get-colnames tab)
+    (define x (table-schema tab))
+    (define (pom xs x schema)
+        (if (null? schema) 
+            (append xs (list (column-info-name x)))
+            (pom (append xs (list (column-info-name x))) (car schema) (cdr schema))))
+    (pom '() (car x) (cdr x)))
+
+
+(define (is-in? elem x xs)
+    (cond [(null? xs) (equal? elem x)]
+        [(equal? elem x) #t]
+        [(not (null? xs)) (is-in? elem (car xs) (cdr xs))]
+        [else #f]))
+
+(define (get-specific-schema cols schema) 
+    (define (pom x xs new-schema)
+        (cond [(null? xs) 
+                (if (is-in? (column-info-name x) (car cols) (cdr cols)) 
+                    (append new-schema (list x))
+                    new-schema)]
+            [(is-in? (column-info-name x) (car cols) (cdr cols)) 
+                (pom (car xs) (cdr xs) (append new-schema (list x)))]
+            [else 
+                (pom (car xs) (cdr xs) new-schema)]))
+    (pom (car schema) (cdr schema) '()))
+
+(define (index-of x xs)
+    (define (loop xs i)
+        (cond [(null? xs) #f]
+            [(equal? (car xs) x) i]
+            [else (loop (cdr xs) (+ 1 i))]))
+    (loop xs 0)
+    )
+
+(define (indexes cols tab)
+    (define schema (get-colnames tab))
+    (define (for col cols idx)
+        (if (null? cols)
+            (append idx (list (index-of col schema)))
+            (for (car cols) (cdr cols) (append idx (list (index-of col schema))))))
+    (for (car cols) (cdr cols) '()))
+
+(define (get-specific-rows cols tab)
+    (define idxs (indexes cols tab))
+    (define (for row rows new-rows)
+        (define (for2 i idx row acc)
+            (if (null? idx) 
+                (append acc (list (list-ref row i)))
+                (for2 (car idx) (cdr idx) row (append acc (list (list-ref row i)))) 
+            ))
+        (if (null? rows)
+            (append new-rows (list (for2 (car idxs) (cdr idxs) row '())))
+            (for (car rows) (cdr rows)
+                (append new-rows (list (for2 (car idxs) (cdr idxs) row '()))))
+        ))
+    (define rows (table-rows tab))
+    (for (car rows) (cdr rows) '())
+)
+
+(define (table-project cols tab) 
+    (define new-schema (get-specific-schema cols (table-schema tab)))
+    (define new-rows (get-specific-rows cols tab))
+    (table new-schema new-rows)
+)
 
 (define (table-sort cols tab) null)
 
