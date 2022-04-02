@@ -1,6 +1,6 @@
 #lang racket
 
-(require "interface.rkt")
+(require "solution.rkt")
 
 (define cities
   (table
@@ -30,7 +30,8 @@
 
 (define tab (table-insert (list "Rzeszow" "Poland" 129 #f) cities))
 (define tab2 (table-project '(city capital area) cities))
-(table-display tab2)
+(define tab3 (table-cross-join cities countries))
+(table-display tab3)
 (display "\n\n")
 (define tab1 (table-rename 'capital 'is_capital tab))
 (table-display tab1)
