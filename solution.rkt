@@ -202,7 +202,34 @@
 (define-struct eq2-f (name name2))
 (define-struct lt-f (name val))
 
-(define (table-select form tab) null)
+(define (good-rows form row cols)
+    (cond [(and-f? form) 
+            (if (and (good-rows (and-f-l form) row cols) (good-rows (and-f-r form) row cols)) #t #f)]
+        [(or-f? form) (if (or (good-rows (or-f-l form) row cols) (good-rows (or-f-r form) row cols)) #t #f)]
+        [(not-f? form) (if (not (good-rows (not-f-e form) row cols)) #t #f)]
+        [(eq-f? form) 
+            (define idx (index-of (eq-f-name form) cols))
+            (if (equal? (list-ref row idx) (eq-f-val form)) #t #f)] 
+        [(eq2-f? form) 
+            (define idx1 (index-of (eq2-f-name form) cols))
+            (define idx2 (index-of (eq2-f-name2 form) cols))
+            (if (equal? (list-ref row idx1) (list-ref row idx2)) #t #f)]
+        [(lt-f? form)
+            (define idx (index-of (lt-f-name form) cols))
+            (if (< (list-ref row idx) (lt-f-val form)) #t #f)] ))
+
+(define (table-select form tab) 
+    (define rows (table-rows tab))
+    (define colnames (get-colnames tab))
+    (define (pom form row rows xs)
+        (cond [(null? rows) 
+                (if (good-rows form row colnames) (append xs (list row)) xs)]
+            [(good-rows form row colnames)
+                (pom form (car rows) (cdr rows) (append xs (list row)))]
+            [else (pom form (car rows) (cdr rows) xs)]
+        ))
+    (pom form (car rows) (cdr rows) '())
+)
 
 ; Zmiana nazwy
 

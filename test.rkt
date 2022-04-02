@@ -29,9 +29,12 @@
 (define (empty-table columns) (table columns '()))
 
 (define tab (table-insert (list "Rzeszow" "Poland" 129 #f) cities))
-(define tab2 (table-project '(city capital area) cities))
+(define tab2 (table-project '(city capital area) tab))
 (define tab3 (table-cross-join cities countries))
-(table-display tab3)
+(define tab4 (table-select 
+      (or-f (eq-f 'country "Poland")  (lt-f 'area 100))
+      tab))
+(display tab4)
 (display "\n\n")
 (define tab1 (table-rename 'capital 'is_capital tab))
 (table-display tab1)
