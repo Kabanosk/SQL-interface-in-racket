@@ -19,7 +19,7 @@
 
 (define countries
   (table
-   (list (column-info 'country 'string)
+   (list (column-info 'country 'string) 
          (column-info 'population 'number))
    (list (list "Poland" 38)
          (list "Germany" 83)
@@ -34,7 +34,9 @@
 (define tab4 (table-select 
       (or-f (eq-f 'country "Poland")  (lt-f 'area 100))
       tab))
-;;; (display tab4)
+(define tab5 (table-natural-join cities countries))
+(table-display tab5)
 (display "\n\n")
 (define tab1 (table-rename 'capital 'is_capital tab))
-(table-display tab2)
+(table-display  (table-select (and-f (eq-f 'capital #t )
+                              ( not-f ( lt-f 'area 300))) cities))

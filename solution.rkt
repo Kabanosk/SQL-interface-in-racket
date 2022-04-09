@@ -42,16 +42,20 @@
 
 (define (check-columns row tab)
     (define types (get-types tab))
-    (define (check-types x row type types)
-        (define f (type-question type))
-        (if (null? types) 
-            (f x)
-            (if (not (f x)) 
-                #f
-                (check-types (car row) (cdr row) (car types) (cdr types)))  
+    (cond [(null? row) #f]
+        [(null? tab) #f]
+        [(not (equal? (length row) (length types))) #f]
+        [else
+        (define (check-types x row type types)
+            (define f (type-question type))
+            (if (null? types) 
+                (f x)
+                (if (not (f x)) 
+                    #f
+                    (check-types (car row) (cdr row) (car types) (cdr types)))  
     ))
-    (check-types (car row) (cdr row) (car types) (cdr types)))
-
+    (check-types (car row) (cdr row) (car types) (cdr types))])
+)
 (define (table-insert row tab) 
     (if (check-columns row tab)
         (table 
@@ -198,7 +202,9 @@
                 (pom form (car rows) (cdr rows) (append xs (list row)))]
             [else (pom form (car rows) (cdr rows) xs)]
         ))
-    (pom form (car rows) (cdr rows) '()))
+    (define new-rows (pom form (car rows) (cdr rows) '()))
+    (table (table-schema tab) new-rows)
+    )
 
 ; Zmiana nazwy
 
@@ -240,12 +246,63 @@
     (define new-rows (pom (car rows1) (cdr rows1) '()))
     (table 
         (append (table-schema tab1) (table-schema tab2)) 
-        new-rows)
-)
+        new-rows))
 
 ; Złączenie
 
-(define (table-natural-join tab1 tab2) null)
+(define (table-natural-join tab1 tab2) 
+    (define sch1 (get-colnames tab1))
+    (define sch2 (get-colnames tab2))
+    (define (pom schema acc)
+        (if (null? schema) 
+            acc
+            (pom 
+                (cdr schema) 
+                (if (is-in? (car schema) sch1) (append acc (list (car schema))) acc))))
+    (define rep (pom sch2 '()))
+    (define (pom1 org-cols cols-to-rename tab)
+        (if (null? cols-to-rename)
+            tab
+            (pom1 (cdr org-cols) (cdr cols-to-rename) 
+                (table-rename (car org-cols) (string->symbol (string-append (symbol->string (car cols-to-rename)) "1")) tab))
+        )
+    )
+    (define (change-rep xs acc)
+        (if (null? xs) acc
+        (change-rep (cdr xs) (append acc (list (string->symbol (string-append (symbol->string (car xs)) "1"))) )
+    )))
+    (define new-tab-cart (table-cross-join tab1 (pom1 sch2 rep tab2)))
+    (define i0 (indexes rep new-tab-cart))
+    (define i1 (indexes (change-rep rep '()) new-tab-cart))
+    (define (indexes-natural xs i acc)
+        (cond [(null? xs) acc] 
+            [(equal? (car xs) 1) (indexes-natural (cdr xs) (add1 i) (append acc (list i)))]
+            [else (indexes-natural (cdr xs) (add1 i) acc)])
+    )
+    (define (is-good-row? row xs ys)
+        (cond [(null? xs) #t]
+            [(equal? (list-ref row (car xs)) (list-ref row (car ys))) (is-good-row? row (cdr xs) (cdr ys))]
+            [else #f]
+        )
+    )
+    (define idxs0 (indexes-natural i0 0 '()))
+    (define idxs1 (indexes-natural i1 0 '()))
+    (define (good-rows-natural rows acc)
+        (cond [(null? rows) acc]
+            [(is-good-row? (car rows) idxs0 idxs1) (good-rows-natural (cdr rows) (append acc (list (car rows))))]
+            [else (good-rows-natural (cdr rows) acc)]
+        )
+    )
+    (define new-schema (table-schema new-tab-cart))
+    (define new-tab (table new-schema (good-rows-natural (table-rows new-tab-cart) '())))
+    (define (all-except i idxs acc) 
+        (cond [(null? idxs) acc]
+            [(equal? (car idxs) 0) (all-except (add1 i) (cdr idxs) (append acc (list (column-info-name (list-ref new-schema i)))))]
+            [else (all-except (add1 i) (cdr idxs) acc)]
+        )
+        )
+    (table-project (all-except 0 i1 '()) new-tab)
+)
 
 ; funkcje dodatkowe 
 
@@ -264,15 +321,14 @@
             [(equal? el x) #t]
             [(not (null? arr)) (pom el (car arr) (cdr arr))]
             [else #f]))
-    (pom elem (car xs) (cdr xs))
-)
+    (pom elem (car xs) (cdr xs)))
+
 (define (index-of x xs)
     (define (loop xs i)
         (cond [(null? xs) #f]
             [(equal? (car xs) x) i]
             [else (loop (cdr xs) (+ 1 i))]))
-    (loop xs 0)
-    )
+    (loop xs 0))
 
 (define (indexes cols tab)
     (define schema (get-colnames tab))
