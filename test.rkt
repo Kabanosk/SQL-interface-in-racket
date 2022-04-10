@@ -26,7 +26,6 @@
          (list "France" 67)
          (list "Spain" 47))))
 
-(define (empty-table columns) (table columns '()))
 
 (define tab (table-insert (list "Rzeszow" "Poland" 129 #f) cities))
 (define tab2 (table-project '(city country capital) tab))
@@ -34,9 +33,10 @@
 (define tab4 (table-select 
       (or-f (eq-f 'country "Poland")  (lt-f 'area 100))
       tab))
-(define tab5 (table-natural-join cities countries))
-(table-display tab5)
+(define tab5 (table-natural-join cities cities))
+(define tab6 (table-sort '(area) cities))
+
+(table-display tab6)
 (display "\n\n")
 (define tab1 (table-rename 'capital 'is_capital tab))
-(table-display  (table-select (and-f (eq-f 'capital #t )
-                              ( not-f ( lt-f 'area 300))) cities))
+(table-display  cities)

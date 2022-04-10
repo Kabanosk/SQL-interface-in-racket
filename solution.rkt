@@ -22,6 +22,8 @@
 
 (define-struct table (schema rows) #:transparent)
 
+(define (empty-table columns) (table columns '()))
+
 (define (get-types tab)
     (define x (table-schema tab))
     (define (pom xs x schema)
@@ -137,35 +139,56 @@
 
 ;Sortowanie
 
-(define (funkcja-wiekszosci type)
-    ;;; (cond [(equal? type 'string) (lambda(x y) (string?> x y))]
-    ;;;     [(equal? type 'number) (lambda(x y) (> x y))]
-    ;;;     [(equal? type 'boolean) (lambda(x y) (boolean?> x y))]
-    ;;;     [(equal? type 'symbol) 
-    ;;;         (lambda(x y) (string?> (symbol->string x) (symbol->string y)))]
-    ;;;     [else (error "Bad column type")])
-    null
+(define (grater-function elem)
+    (cond [(eq? elem 'string) string<? ]
+         [(eq? elem 'number) <]
+         [(eq? elem 'boolean) (lambda (x y) (implies x y))]  
+         [(eq? elem 'symbol) (lambda (x y) (string<? (symbol->string x) (symbol->string y)))]
+  )
 )
 
-(define (find-minimum rows cols)
-    ;;; (define (help row min_row rows col cols1 )
-    ;;;     (define f (funkcja-wiekszosci col))
-    ;;;     (cond [(= row min_row)]
-    ;;;         [(< row min_row) (help (car rows) row (cdr rows) col cols1 )]
-        
-        
-        
-        
-    ;;;     )
-
-    ;;; )
-    null
+(define (find-grater-function elem cols)
+    (cond [(null? cols) (error "Not found")]
+        [(eq? elem (column-info-name (car cols)))
+            (grater-function (column-info-type (car cols)))]
+        [else (find-grater-function elem (cdr cols))])
 )
+
+;;getting element from column of name col
+(define (get-elem elem col cols) 
+  (if (eq? col (column-info-name (car cols)))
+      (car elem)
+      (get-elem (cdr elem) col (cdr cols))))
+
+;;compares two rows to find the smaller one
+(define (compare cols new old schema)
+  (cond [(null? cols) #f]
+        [(eq? (get-elem new (car cols) schema) (get-elem old (car cols) schema)) 
+            (compare (cdr cols) new old schema)]
+        [else 
+            (define f (find-grater-function (car cols) schema))
+            (f (get-elem new (car cols) schema) (get-elem old (car cols) schema))]))
+
+(define (add cols new rows schema)
+  (if (null? rows)
+      (list new)
+      (if (compare cols new (car rows) schema)
+          (cons new rows)
+          (cons (car rows) (add cols new (cdr rows) schema)))))
 
 (define (table-sort cols tab) 
-    (table 
-        (table-schema tab) '() )
-)
+    (define (sorted-tab new-tab schema cols rows)
+        (if (null? rows)
+            new-tab
+            (sorted-tab 
+                (table (table-schema new-tab) 
+                        (add cols (car rows) (table-rows tab) (table-schema tab) )) 
+                schema cols (cdr rows))))
+    (sorted-tab 
+        (empty-table (table-schema tab))
+        (table-schema tab) 
+        cols 
+        (table-rows tab)))
 
 ; Selekcja
 
