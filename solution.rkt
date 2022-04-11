@@ -8,8 +8,6 @@
          (struct-out eq-f)
          (struct-out eq2-f)
          (struct-out lt-f)
-         get-specific-schema
-         table-display
          table-insert
          table-project
          table-sort
@@ -64,43 +62,6 @@
             (table-schema tab) 
             (append (table-rows tab) (list row)))
         (error "You cannot add this row.")))
-; display
-
-(define (line n)
-    (display "\n")
-    (define (pom n)
-        (display "-----\t")
-        (if (> n 0) (pom (- n 1)) (display "\n"))
-    )
-    (pom (- n 1)) )
-
-(define (table-display tab) 
-    (define x (length (table-schema tab)))
-    (define (display-schema elem row)
-        (display (column-info-name elem))
-        (display "\t")
-        (if (null? row) 
-            (line x)
-            (display-schema (car row) (cdr row))))
-
-    (define (print-row elem row)
-        (display elem)
-        (display "\t")
-        (if (null? row) null (print-row (car row) (cdr row))))
-
-    (define (display-rows row rows)
-        (print-row (car row) (cdr row))
-        
-        (cond [(null? rows) 
-                (line x)]
-            [else 
-                (display "\n")
-                (display-rows (car rows) (cdr rows))]))
-
-    (display-schema (car (table-schema tab)) (cdr (table-schema tab)))
-    (if (null? (table-rows tab)) 
-        (display "\n") 
-        (display-rows (car (table-rows tab)) (cdr (table-rows tab)))))
 
 ; projekcja
 
@@ -117,7 +78,7 @@
     (pom (car schema) (cdr schema) '()))
 
 (define (get-specific-rows cols tab)  ;lista wartości boolowskich
-    (define idxs (indexes cols tab)) ;;(1011)
+    (define idxs (indexes cols tab)) 
     (define (for row rows new-rows)
         (define (for2 idx el row acc)
             (if (null? row) 
@@ -140,12 +101,10 @@
 ;Sortowanie
 
 (define (grater-function elem)
-    (cond [(eq? elem 'string) string<? ]
+    (cond [(eq? elem 'string) string<?]
          [(eq? elem 'number) <]
          [(eq? elem 'boolean) (lambda (x y) (implies x y))]  
-         [(eq? elem 'symbol) (lambda (x y) (string<? (symbol->string x) (symbol->string y)))]
-  )
-)
+         [(eq? elem 'symbol) symbol<?]))
 
 (define (find-grater-function elem cols)
     (cond [(null? cols) (error "Not found")]
@@ -161,34 +120,35 @@
       (get-elem (cdr elem) col (cdr cols))))
 
 ;;compares two rows to find the smaller one
-(define (compare cols new old schema)
-  (cond [(null? cols) #f]
-        [(eq? (get-elem new (car cols) schema) (get-elem old (car cols) schema)) 
-            (compare (cdr cols) new old schema)]
-        [else 
-            (define f (find-grater-function (car cols) schema))
-            (f (get-elem new (car cols) schema) (get-elem old (car cols) schema))]))
+(define (compare cols-sort new old schema)
+  (cond [(null? cols-sort) #f]
+        [(eq? (get-elem new (car cols-sort) schema) (get-elem old (car cols-sort) schema)) 
+            (compare (cdr cols-sort) new old schema)]
+        [else ((find-grater-function (car cols-sort) schema) (get-elem new (car cols-sort) schema) 
+            (get-elem old (car cols-sort) schema))]))
 
-(define (add cols new rows schema)
-  (if (null? rows)
-      (list new)
-      (if (compare cols new (car rows) schema)
-          (cons new rows)
-          (cons (car rows) (add cols new (cdr rows) schema)))))
+(define (add cols-sort new rows schema)
+  (cond [(null? rows)
+            (list new)]
+        [(compare cols-sort new (car rows) schema) (cons new rows)]
+        [else (cons (car rows) (add cols-sort new (cdr rows) schema))]))
+    
 
-(define (table-sort cols tab) 
-    (define (sorted-tab new-tab schema cols rows)
+(define (table-sort cols tab)
+    (define sch (table-schema tab))
+    (define (pom acc schema cols rows)
         (if (null? rows)
-            new-tab
-            (sorted-tab 
-                (table (table-schema new-tab) 
-                        (add cols (car rows) (table-rows tab) (table-schema tab) )) 
-                schema cols (cdr rows))))
-    (sorted-tab 
-        (empty-table (table-schema tab))
-        (table-schema tab) 
+            acc
+            (pom 
+                (table sch (add cols (car rows) (table-rows acc) (table-schema acc)))
+                schema 
+                cols 
+                (cdr rows)))) 
+    (pom 
+        (empty-table sch)
+        sch 
         cols 
-        (table-rows tab)))
+        (table-rows tab))) 
 
 ; Selekcja
 
@@ -199,11 +159,20 @@
 (define-struct eq2-f (name name2))
 (define-struct lt-f (name val))
 
-(define (good-rows form row cols)
+
+
+(define (less-func type)
+    (cond [(eq? 'number type) (lambda (x y) (< x y))]
+        [(eq? 'string type) (lambda (x y) (string<? x y))]
+        [(eq? 'symbol type) (lambda (x y) (symbol<? x y))]
+        [(eq? 'boolean type) (lambda (x y) (and (not x) y))])
+)
+
+(define (good-rows form row cols tab)
     (cond [(and-f? form) 
-            (and (good-rows (and-f-l form) row cols) (good-rows (and-f-r form) row cols))]
-        [(or-f? form) (or (good-rows (or-f-l form) row cols) (good-rows (or-f-r form) row cols))]
-        [(not-f? form) (not (good-rows (not-f-e form) row cols)) ]
+            (and (good-rows (and-f-l form) row cols tab) (good-rows (and-f-r form) row cols tab))]
+        [(or-f? form) (or (good-rows (or-f-l form) row cols tab) (good-rows (or-f-r form) row cols tab))]
+        [(not-f? form) (not (good-rows (not-f-e form) row cols tab)) ]
         [(eq-f? form) 
             (define idx (index-of (eq-f-name form) cols))
             (equal? (list-ref row idx) (eq-f-val form)) ] 
@@ -211,17 +180,19 @@
             (define idx1 (index-of (eq2-f-name form) cols))
             (define idx2 (index-of (eq2-f-name2 form) cols))
             (equal? (list-ref row idx1) (list-ref row idx2))]
+
         [(lt-f? form)
             (define idx (index-of (lt-f-name form) cols))
-            (< (list-ref row idx) (lt-f-val form))] ))
+            (define schema (table-schema tab))
+            ((less-func (column-info-type (list-ref schema idx))) (list-ref row idx) (lt-f-val form))] ))
 
 (define (table-select form tab) 
     (define rows (table-rows tab))
     (define colnames (get-colnames tab))
     (define (pom form row rows xs)
         (cond [(null? rows) 
-                (if (good-rows form row colnames) (append xs (list row)) xs)]
-            [(good-rows form row colnames)
+                (if (good-rows form row colnames tab) (append xs (list row)) xs)]
+            [(good-rows form row colnames tab)
                 (pom form (car rows) (cdr rows) (append xs (list row)))]
             [else (pom form (car rows) (cdr rows) xs)]
         ))
@@ -233,18 +204,15 @@
 
 (define (table-rename name new-name tab)
     (define schema (table-schema tab))
-    (define (pom acc x ys) 
-        (cond [(null? ys) 
-            (if (equal? name (column-info-name x))
-                (append acc (list (column-info new-name (column-info-type x)))) 
-                (append acc (list x)))]        
-            [(equal? name (column-info-name x))
-                (pom (append acc (list (column-info new-name (column-info-type x)))) 
-                    (car ys) 
-                    (cdr ys))]
-            [else (pom (append acc (list x)) (car ys) (cdr ys))]))
+    (define (pom acc xs) 
+        (cond [(null? xs) 
+            acc]        
+            [(eq? (column-info-name (car xs)) name) 
+                (pom (append acc (list (column-info new-name (column-info-type (car xs))))) 
+                    (cdr xs))]
+            [else (pom (append acc (list (car xs))) (cdr xs))]))
 
-    (define tmp (pom '() (car schema) (cdr schema)))
+    (define tmp (pom '() schema))
     (table tmp (table-rows tab)))
 
 ; Złączenie kartezjańskie
@@ -282,50 +250,31 @@
             (pom 
                 (cdr schema) 
                 (if (is-in? (car schema) sch1) (append acc (list (car schema))) acc))))
+
     (define rep (pom sch2 '()))
-    (define (pom1 org-cols cols-to-rename tab)
-        (if (null? cols-to-rename)
-            tab
-            (pom1 (cdr org-cols) (cdr cols-to-rename) 
-                (table-rename (car org-cols) (string->symbol (string-append (symbol->string (car cols-to-rename)) "1")) tab))
+    (define (rename-all org-cols cols-to-rename tab)
+        (cond [(null? cols-to-rename) tab]
+            [(equal? (car org-cols) (car cols-to-rename)) (rename-all (cdr org-cols) (cdr cols-to-rename) 
+                (table-rename (car org-cols) (string->symbol (string-append (symbol->string (car cols-to-rename)) "1")) tab))]
+            [else (rename-all (cdr org-cols) cols-to-rename tab)])
+    )
+    (define new-tab-cart (table-cross-join tab1 (rename-all sch2 rep tab2)))
+    (define (get-selected rep-cols acc-tab)
+        (if (null? rep-cols) 
+            acc-tab
+            (get-selected (cdr rep-cols) (table-select (eq2-f 
+                                                            (car rep-cols) 
+                                                            (string->symbol (string-append (symbol->string (car rep-cols)) "1"))) acc-tab))))
+    
+    (define (good-cols first-tab-cols cols bad-cols acc) 
+        (cond [(null? cols) 
+            (append first-tab-cols acc)]
+            [(is-in? (car cols) bad-cols) (good-cols first-tab-cols (cdr cols) bad-cols acc)]
+            [else (good-cols first-tab-cols (cdr cols) bad-cols (append acc (list (car cols))))]
         )
     )
-    (define (change-rep xs acc)
-        (if (null? xs) acc
-        (change-rep (cdr xs) (append acc (list (string->symbol (string-append (symbol->string (car xs)) "1"))) )
-    )))
-    (define new-tab-cart (table-cross-join tab1 (pom1 sch2 rep tab2)))
-    (define i0 (indexes rep new-tab-cart))
-    (define i1 (indexes (change-rep rep '()) new-tab-cart))
-    (define (indexes-natural xs i acc)
-        (cond [(null? xs) acc] 
-            [(equal? (car xs) 1) (indexes-natural (cdr xs) (add1 i) (append acc (list i)))]
-            [else (indexes-natural (cdr xs) (add1 i) acc)])
-    )
-    (define (is-good-row? row xs ys)
-        (cond [(null? xs) #t]
-            [(equal? (list-ref row (car xs)) (list-ref row (car ys))) (is-good-row? row (cdr xs) (cdr ys))]
-            [else #f]
-        )
-    )
-    (define idxs0 (indexes-natural i0 0 '()))
-    (define idxs1 (indexes-natural i1 0 '()))
-    (define (good-rows-natural rows acc)
-        (cond [(null? rows) acc]
-            [(is-good-row? (car rows) idxs0 idxs1) (good-rows-natural (cdr rows) (append acc (list (car rows))))]
-            [else (good-rows-natural (cdr rows) acc)]
-        )
-    )
-    (define new-schema (table-schema new-tab-cart))
-    (define new-tab (table new-schema (good-rows-natural (table-rows new-tab-cart) '())))
-    (define (all-except i idxs acc) 
-        (cond [(null? idxs) acc]
-            [(equal? (car idxs) 0) (all-except (add1 i) (cdr idxs) (append acc (list (column-info-name (list-ref new-schema i)))))]
-            [else (all-except (add1 i) (cdr idxs) acc)]
-        )
-        )
-    (table-project (all-except 0 i1 '()) new-tab)
-)
+
+    (table-project (good-cols sch1 sch2 rep '()) (get-selected rep new-tab-cart)))
 
 ; funkcje dodatkowe 
 
@@ -336,7 +285,6 @@
             (append xs (list (column-info-name x)))
             (pom (append xs (list (column-info-name x))) (car schema) (cdr schema))))
     (pom '() (car x) (cdr x)))
-
 
 (define (is-in? elem xs)
     (define (pom el x arr)
@@ -355,12 +303,12 @@
 
 (define (indexes cols tab)
     (define schema (get-colnames tab))
-    (define (for sh xs idx)
+    (define (for sch xs idx)
         (if (null? xs) 
-            (if (is-in? sh cols)
+            (if (is-in? sch cols)
                 (append idx (list 1))
                 (append idx (list 0)))
-            (if (is-in? sh cols)
+            (if (is-in? sch cols)
                 (for (car xs) (cdr xs) (append idx (list 1)))
                 (for (car xs) (cdr xs) (append idx (list 0)))))
     )
