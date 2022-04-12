@@ -1,5 +1,7 @@
 #lang racket
 
+;;;!testy, nazwy funckji, 
+
 (provide (struct-out column-info)
          (struct-out table)
          (struct-out and-f)
@@ -93,10 +95,19 @@
     (define rows (table-rows tab))
     (for (car rows) (cdr rows) '()))
 
+(define (gen-empty-table n)
+    (define (for i acc)
+        (if (equal? 0 i) 
+            acc
+            (for (- i 1) (append acc (list '())))))
+    (for n '()))
+
 (define (table-project cols tab) 
-    (table 
-        (get-specific-schema cols (table-schema tab)) 
-        (get-specific-rows cols tab)))
+    (if (null? cols) 
+        (table '() (gen-empty-table (length (table-rows tab))))
+        (table 
+            (get-specific-schema cols (table-schema tab)) 
+            (get-specific-rows cols tab))))
 
 ;Sortowanie
 
@@ -158,10 +169,10 @@
 (define-struct eq-f (name val))
 (define-struct eq2-f (name name2))
 (define-struct lt-f (name val))
+; insert do pustej 
 
 
-
-(define (less-func type)
+(define (less-function type)
     (cond [(eq? 'number type) (lambda (x y) (< x y))]
         [(eq? 'string type) (lambda (x y) (string<? x y))]
         [(eq? 'symbol type) (lambda (x y) (symbol<? x y))]
@@ -184,20 +195,22 @@
         [(lt-f? form)
             (define idx (index-of (lt-f-name form) cols))
             (define schema (table-schema tab))
-            ((less-func (column-info-type (list-ref schema idx))) (list-ref row idx) (lt-f-val form))] ))
+            ((less-function (column-info-type (list-ref schema idx))) (list-ref row idx) (lt-f-val form))] ))
 
 (define (table-select form tab) 
-    (define rows (table-rows tab))
-    (define colnames (get-colnames tab))
-    (define (pom form row rows xs)
-        (cond [(null? rows) 
-                (if (good-rows form row colnames tab) (append xs (list row)) xs)]
-            [(good-rows form row colnames tab)
-                (pom form (car rows) (cdr rows) (append xs (list row)))]
-            [else (pom form (car rows) (cdr rows) xs)]
-        ))
-    (define new-rows (pom form (car rows) (cdr rows) '()))
-    (table (table-schema tab) new-rows)
+    (cond [(null? (table-rows tab)) (empty-table (table-schema tab))]
+    [else 
+        (define rows (table-rows tab))
+        (define colnames (get-colnames tab))
+        (define (pom form row rows xs)
+            (cond [(null? rows) 
+                    (if (good-rows form row colnames tab) (append xs (list row)) xs)]
+                [(good-rows form row colnames tab)
+                    (pom form (car rows) (cdr rows) (append xs (list row)))]
+                [else (pom form (car rows) (cdr rows) xs)]
+            ))
+        (define new-rows (pom form (car rows) (cdr rows) '()))
+        (table (table-schema tab) new-rows)])
     )
 
 ; Zmiana nazwy
@@ -227,21 +240,25 @@
     (help (car rows) (cdr rows) '()))
 
 (define (table-cross-join tab1 tab2) 
-    (define rows1 (table-rows tab1))
-    (define rows2 (table-rows tab2))
-    (define (pom row rows xs)
-        (if (null? rows) 
-            (append xs (make-connected-row row rows2))
-            (pom (car rows) (cdr rows) (append xs (make-connected-row row rows2)))   
-        ))
-    (define new-rows (pom (car rows1) (cdr rows1) '()))
-    (table 
-        (append (table-schema tab1) (table-schema tab2)) 
-        new-rows))
+    (cond [(or (null? (table-rows tab1)) (null? (table-rows tab2))) (table (append (table-schema tab1) (table-schema tab2)) '())]
+    [else 
+        (define rows1 (table-rows tab1))
+        (define rows2 (table-rows tab2))
+        (define (pom row rows xs)
+            (if (null? rows) 
+                (append xs (make-connected-row row rows2))
+                (pom (car rows) (cdr rows) (append xs (make-connected-row row rows2)))   
+            ))
+        (define new-rows (pom (car rows1) (cdr rows1) '()))
+        (table 
+            (append (table-schema tab1) (table-schema tab2)) 
+            new-rows)]))
 
 ; Złączenie
 
 (define (table-natural-join tab1 tab2) 
+    (cond [(or (null? (table-rows tab1)) (null? (table-rows tab2))) (table (remove-duplicates (append (table-schema tab1) (table-schema tab2))) '())]
+    [else 
     (define sch1 (get-colnames tab1))
     (define sch2 (get-colnames tab2))
     (define (pom schema acc)
@@ -274,7 +291,7 @@
         )
     )
 
-    (table-project (good-cols sch1 sch2 rep '()) (get-selected rep new-tab-cart)))
+    (table-project (good-cols sch1 sch2 rep '()) (get-selected rep new-tab-cart))]))    
 
 ; funkcje dodatkowe 
 
