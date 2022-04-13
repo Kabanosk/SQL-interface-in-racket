@@ -1,6 +1,6 @@
-#lang racket
+#lang racket/base
 
-(require "solution.rkt")
+(require rackunit "solution.rkt")
 
 (define cities
   (table
@@ -28,61 +28,60 @@
 
 (define countries1
   (table
-   (list 
-         (column-info 'country 'string) 
+    (list 
+         (column-info 'country  'string) 
          (column-info 'population 'number)
-         (column-info 'city 'string)
-)
-   (list (list "Poland" 38 "Wrocław")
+         (column-info 'city 'string)) 
+    (list (list "Poland" 38 "Wrocław")
          (list "Germany" 83  "Munich")
          (list "France" 67 "Paris" )
          (list "Spain" 47 "Barcelona" ))))
-; display
 
-(define (line n)
-    (display "\n")
-    (define (pom n)
-        (display "-----\t")
-        (if (> n 0) (pom (- n 1)) (display "\n"))
+(define (tests-insert)
+    (test-begin)
+        (let ([tab (table-insert (list "Rzeszow" "Poland" 129 #f) cities)])
+        (check-equal? (length (table-rows tab)) 8)))
+
+(define (tests-project)
+    (let ([tab (table-project '(city country capital) cities)])
+        (check-equal? (length (table-schema tab)) 3))
+    (let ([tab1 (table-project '(city) cities)])
+        (check-equal? (length (table-schema tab1)) 1)))
+
+(define (tests-sort)
+    (let ([tab (table-sort '(country area) cities)])
+        (check-equal? (car (table-rows tab)) (list "Rennes"  "France"   50 #f))
     )
-    (pom (- n 1)) )
+    (let ([tab1 (table-sort '(country) countries)])
+        (check-equal? (car (table-rows tab1)) (list "France" 67))))
 
-(define (table-display tab) 
-    (define x (length (table-schema tab)))
-    (define (display-schema elem row)
-        (display (column-info-name elem))
-        (display "\t")
-        (if (null? row) 
-            (line x)
-            (display-schema (car row) (cdr row))))
+(define (tests-select)
+    (let ([tab (table-select (lt-f 'area 100) cities)])
+        (check-equal? (car (table-rows tab)) (list "Rennes"  "France"   50 #f)))
+    (let ([tab1 (table-select (and-f (not-f (lt-f 'area 270)) (eq-f 'capital #f)) cities)])
+        (check-equal? (car (table-rows tab1)) (list "Wrocław" "Poland"  293 #f))))
 
-    (define (print-row elem row)
-        (display elem)
-        (display "\t")
-        (if (null? row) null (print-row (car row) (cdr row))))
+(define (tests-rename)
+    (let ([tab (table-rename 'city 'miasto cities)])
+        (check-equal? (car (table-schema tab)) (column-info 'miasto 'string))
+        (check-equal? (table-rows tab) (table-rows cities))))
 
-    (define (display-rows row rows)
-        (print-row (car row) (cdr row))
-        
-        (cond [(null? rows) 
-                (line x)]
-            [else 
-                (display "\n")
-                (display-rows (car rows) (cdr rows))]))
+(define (tests-cross-join)
+    (let ([tab (table-cross-join cities countries)])
+        (check-equal? (table-schema tab) (append (table-schema cities) (table-schema countries)))
+        (check-equal? (car (table-rows tab)) (append (car (table-rows cities)) (car (table-rows countries))))))
 
-    (display-schema (car (table-schema tab)) (cdr (table-schema tab)))
-    (if (null? (table-rows tab)) 
-        (display "\n") 
-        (display-rows (car (table-rows tab)) (cdr (table-rows tab)))))
+(define (tests-natural-join) 
+    (let ([tab (table-natural-join cities countries1)])
+        (check-equal? (length (table-rows tab)) 3))
+    (let ([tab1 (table-natural-join cities countries)])
+        (check-equal? (car (table-rows tab1)) (list "Wrocław" "Poland"  293 #f 38))
+    ))
 
-(define tab5 (table-natural-join cities countries1))
-(define tab1 (table-rename 'capital 'country132 cities))
-
-(define tab6 (table-sort '(country area) cities))
-(define tab4 (table-select  (not-f (lt-f 'capital #f)) cities))
-(table-display tab6)
-(display "\n\n")
-;;; (table-display  (table-cross-join cities countries1))
-(define tab (table-insert (list "Rzeszow" "Poland" 129 #f) cities))
-(define tab2 (table-project '(city country capital) tab))
-(define tab3 (table-cross-join cities countries))
+(tests-insert)
+(tests-project)
+(tests-sort)
+(tests-select)
+(tests-rename)
+(tests-cross-join)
+(tests-natural-join)
